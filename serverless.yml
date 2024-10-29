@@ -1,0 +1,120 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: eljie9269
+app: hubspot-plugin-api
+service: hubspot-plugin-api
+
+provider:
+  name: aws
+  runtime: python3.10
+  profile: taisk
+  stage: ${opt:stage, 'dev'}
+  region: eu-west-2
+  timeout: 180  # Default timeout for all functions (in seconds)
+  environment:
+    DB_HOST: ${self:custom.env.DB_HOST}
+    DB_NAME: ${self:custom.env.DB_NAME}
+    DB_PASS: ${self:custom.env.DB_PASS}
+    DB_PORT: ${self:custom.env.DB_PORT}
+    DB_USER: ${self:custom.env.DB_USER}
+    CLAUDE_API_KEY: ${self:custom.env.CLAUDE_API_KEY}
+    OPENAI_API_KEY: ${self:custom.env.OPENAI_API_KEY}
+  vpc:
+    securityGroupIds:
+      - ${self:custom.env.VPC_SECURITY_GROUP_ID}
+    subnetIds: ${self:custom.env.VPC_SUBNET_IDS}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - rds-db:connect
+          Resource:
+            - arn:aws:rds-db:${self:provider.region}:*:dbuser:${self:custom.env.DB_RESOURCE_ID}/${self:custom.env.DB_USER}
+
+custom:
+  stages:
+    dev:
+      DB_HOST: ${env:DEV_DB_HOST}
+      DB_NAME: ${env:DEV_DB_NAME}
+      DB_PASS: ${env:DEV_DB_PASS}
+      DB_PORT: ${env:DEV_DB_PORT}
+      DB_USER: ${env:DEV_DB_USER}
+      DB_RESOURCE_ID: ${env:DEV_DB_RESOURCE_ID}
+      VPC_SECURITY_GROUP_ID: ${env:DEV_VPC_SECURITY_GROUP_ID}
+      VPC_SUBNET_IDS:
+        - ${env:DEV_VPC_SUBNET_ID_1}
+        - ${env:DEV_VPC_SUBNET_ID_2}
+      CLAUDE_API_KEY: ${env:DEV_CLAUDE_API_KEY}
+      OPENAI_API_KEY: ${env:DEV_OPENAI_API_KEY}
+    prod:
+      DB_HOST: ${env:PROD_DB_HOST}
+      DB_NAME: ${env:PROD_DB_NAME}
+      DB_PASS: ${env:PROD_DB_PASS}
+      DB_PORT: ${env:PROD_DB_PORT}
+      DB_USER: ${env:PROD_DB_USER}
+      DB_RESOURCE_ID: ${env:PROD_DB_RESOURCE_ID}
+      VPC_SECURITY_GROUP_ID: ${env:PROD_VPC_SECURITY_GROUP_ID}
+      VPC_SUBNET_IDS:
+        - ${env:PROD_VPC_SUBNET_ID_1}
+        - ${env:PROD_VPC_SUBNET_ID_2}
+      CLAUDE_API_KEY: ${env:PROD_CLAUDE_API_KEY}
+      OPENAI_API_KEY: ${env:PROD_OPENAI_API_KEY}
+  env: ${self:custom.stages.${opt:stage, self:provider.stage}}
+  wsgi:
+    app: app.app
+    packRequirements: false
+  pythonRequirements:
+    dockerizePip: false
+    zip: true
+    slim: true
+    noDeploy:
+      - boto3
+      - botocore
+      - docutils
+      - jmespath
+      - pip
+      - python-dateutil
+      - s3transfer
+      - setuptools
+      - six
+      - Werkzeug
+      - psycopg2-binary
+      - asgiref
+      - awscrt
+      - cryptography
+      - langchain
+      - langchain_anthropic
+      - langchain_core
+      - mod
+      - objgraph
+      - packaging
+      - pkg1
+      - platformdirs
+      
+
+package:
+  exclude:
+    - node_modules/**
+    - .venv/**
+
+functions:
+  api:
+    handler: wsgi_handler.handler
+    timeout: 300  # Specific timeout for this function (in seconds)
+    events:
+      - http:
+          path: /
+          method: ANY
+      - http:
+          path: /{proxy+}
+          method: ANY
+
+plugins:
+  - serverless-wsgi
+  - serverless-offline
